@@ -52,18 +52,8 @@
 - (void)reloadTableData {
     [self.tableViewInfo clearAllSection];
     
-    [self addBasicSettingSection];
-    [self addSupportSection];
-    
-    CContactMgr *contactMgr = [[objc_getClass("MMServiceCenter") defaultCenter] getService:objc_getClass("CContactMgr")];
-    
-    if ([contactMgr isInContactList:@"gh_6e8bddcdfca3"]) {
-        [self addAdvanceSettingSection];
-    } else {
-        [self addAdvanceLimitSection];
-    }
-    
-    [self addAboutSection];
+    [self addBasicSettingSection];    
+    [self addAdvanceSettingSection];
     
     MMTableView *tableView = [self.tableViewInfo getTableView];
     [tableView reloadData];
