@@ -54,6 +54,7 @@
     
     [self addBasicSettingSection];    
     [self addAdvanceSettingSection];
+	[self addOtherSection];
     
     MMTableView *tableView = [self.tableViewInfo getTableView];
     [tableView reloadData];
@@ -109,6 +110,14 @@
 }
 
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
+	if (alertView.tag == 3) {
+		if (buttonIndex == 1) {
+			NSUInteger customStepCount = [[alertView textFieldAtIndex:0].text integerValue];
+			[[NSUserDefaults standardUserDefaults] setInteger:customStepCount forKey:@"WeChatTweakCustomStepCountKey"];
+			[self reloadTableData];
+		}
+		return;
+	}
     if (buttonIndex == 1) {
         NSString *delaySecondsString = [alertView textFieldAtIndex:0].text;
         NSInteger delaySeconds = [delaySecondsString integerValue];
@@ -127,7 +136,7 @@
     [sectionInfo addCell:[self createQueueCell]];
     [sectionInfo addCell:[self createBlackListCell]];
     [sectionInfo addCell:[self createAbortRemokeMessageCell]];
-    [sectionInfo addCell:[self createKeywordFilterCell]];
+    //[sectionInfo addCell:[self createKeywordFilterCell]];
     
     [self.tableViewInfo addSection:sectionInfo];
 }
@@ -180,90 +189,43 @@
     [WBRedEnvelopConfig sharedConfig].revokeEnable = revokeSwitch.on;
 }
 
-#pragma mark - ProLimit
-
-- (void)addAdvanceLimitSection {
-    MMTableViewSectionInfo *sectionInfo = [objc_getClass("MMTableViewSectionInfo") sectionInfoHeader:@"高级功能" Footer:@"关注公众号后开启高级功能"];
-    
-    [sectionInfo addCell:[self createReceiveSelfRedEnvelopLimitCell]];
-    [sectionInfo addCell:[self createQueueLimitCell]];
-    [sectionInfo addCell:[self createBlackListLimitCell]];
-    [sectionInfo addCell:[self createAbortRemokeMessageLimitCell]];
-    [sectionInfo addCell:[self createKeywordFilterLimitCell]];
-    
-    [self.tableViewInfo addSection:sectionInfo];
-}
-
-- (MMTableViewCellInfo *)createReceiveSelfRedEnvelopLimitCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForTitle:@"抢自己发的红包" rightValue:@"未启用"];
-}
-
-- (MMTableViewCellInfo *)createQueueLimitCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForTitle:@"防止同时抢多个红包" rightValue:@"未启用"];
-}
-
-- (MMTableViewCellInfo *)createBlackListLimitCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForTitle:@"群聊过滤" rightValue:@"未启用"];
-}
-
-- (MMTableViewSectionInfo *)createKeywordFilterLimitCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForTitle:@"关键词过滤" rightValue:@"未启用"];
-}
-
-- (MMTableViewSectionInfo *)createAbortRemokeMessageLimitCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForTitle:@"消息防撤回" rightValue:@"未启用"];
-}
-
-#pragma mark - About
-- (void)addAboutSection {
-    MMTableViewSectionInfo *sectionInfo = [objc_getClass("MMTableViewSectionInfo") sectionInfoDefaut];
-    
-    [sectionInfo addCell:[self createGithubCell]];
-    [sectionInfo addCell:[self createBlogCell]];
-    
-    [self.tableViewInfo addSection:sectionInfo];
-}
-
-- (MMTableViewCellInfo *)createGithubCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForSel:@selector(showGithub) target:self title:@"我的 Github" rightValue: @"★ star" accessoryType:1];
-}
-
-- (MMTableViewCellInfo *)createBlogCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForSel:@selector(showBlog) target:self title:@"我的博客" accessoryType:1];
-}
-
-- (void)showGithub {
-    NSURL *gitHubUrl = [NSURL URLWithString:@"https://github.com/buginux/WeChatRedEnvelop"];
-    MMWebViewController *webViewController = [[objc_getClass("MMWebViewController") alloc] initWithURL:gitHubUrl presentModal:NO extraInfo:nil];
-    [self.navigationController PushViewController:webViewController animated:YES];
-}
-
-- (void)showBlog {
-    NSURL *blogUrl = [NSURL URLWithString:@"http://www.swiftyper.com"];
-    MMWebViewController *webViewController = [[objc_getClass("MMWebViewController") alloc] initWithURL:blogUrl presentModal:NO extraInfo:nil];
-    [self.navigationController PushViewController:webViewController animated:YES];
-}
-
 #pragma mark - Support
-- (void)addSupportSection {
+- (void)addOtherSection {
     MMTableViewSectionInfo *sectionInfo = [objc_getClass("MMTableViewSectionInfo") sectionInfoDefaut];
     
-    [sectionInfo addCell:[self createWeChatPayingCell]];
+    [sectionInfo addCell:[self addCustomStepCount]];
+	[sectionInfo addCell:[self addBackground]];
     
     [self.tableViewInfo addSection:sectionInfo];
 }
 
-- (MMTableViewCellInfo *)createWeChatPayingCell {
-    return [objc_getClass("MMTableViewCellInfo") normalCellForSel:@selector(payingToAuthor) target:self title:@"微信打赏" rightValue:@"支持作者开发" accessoryType:1];
+- (MMTableViewCellInfo *)addCustomStepCount {
+	NSUInteger customStepCount = [[NSUserDefaults standardUserDefaults] integerForKey:@"WeChatTweakCustomStepCountKey"];
+	NSString *customStepCountString = customStepCount == 0 ? @"不设置" : [NSString stringWithFormat:@"%@ 步", @(customStepCount)];
+    return [objc_getClass("MMTableViewCellInfo") normalCellForSel:@selector(setCustomStepCount) target:self title:@"自定义步数" rightValue:customStepCountString accessoryType:1];
 }
 
-- (void)payingToAuthor {
-    [self startLoadingNonBlock];
-    ScanQRCodeLogicController *scanQRCodeLogic = [[objc_getClass("ScanQRCodeLogicController") alloc] initWithViewController:self CodeType:3];
-    scanQRCodeLogic.fromScene = 2;
-    
-    NewQRCodeScanner *qrCodeScanner = [[objc_getClass("NewQRCodeScanner") alloc] initWithDelegate:scanQRCodeLogic CodeType:3];
-    [qrCodeScanner notifyResult:@"https://wx.tenpay.com/f2f?t=AQAAABxXiDaVyoYdR5F1zBNM5jI%3D" type:@"QR_CODE" version:6];
+- (void)setCustomStepCount {
+	UIAlertView *alertView = [[UIAlertView alloc] init];
+	alertView.alertViewStyle = UIAlertViewStylePlainTextInput;
+	alertView.delegate = self;
+	alertView.title = @"设置步数";
+	alertView.tag = 3;
+	[alertView addButtonWithTitle:@"取消"];
+	[alertView addButtonWithTitle:@"确定"];
+	[alertView textFieldAtIndex:0].placeholder = @"输入自定义步数";
+	[alertView textFieldAtIndex:0].keyboardType = UIKeyboardTypeNumberPad;
+	[alertView show];
+}
+
+- (MMTableViewCellInfo *)addBackground {
+	BOOL isAutoRedEnvelopesKeepRunning = [[NSUserDefaults standardUserDefaults] boolForKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"];
+	return [objc_getClass("MMTableViewCellInfo") switchCellForSel:@selector(switchAutoRedEnvelopesKeepRunning:) target:self title:@"后台运行以获取消息或红包" on:isAutoRedEnvelopesKeepRunning];
+}
+
+- (void)switchAutoRedEnvelopesKeepRunning:(UISwitch *)sender {
+	[[NSUserDefaults standardUserDefaults] setBool:sender.on forKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"];
+	[self reloadTableData];
 }
 
 #pragma mark - MultiSelectGroupsViewControllerDelegate

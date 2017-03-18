@@ -5,18 +5,37 @@
 #import "WBRedEnvelopTaskManager.h"
 #import "WBRedEnvelopConfig.h"
 #import "WBRedEnvelopParamQueue.h"
+#import "KeepRunningManager.h"
 
 %hook MicroMessengerAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
   		
-  	CContactMgr *contactMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(CContactMgr)];
-	CContact *contact = [contactMgr getContactForSearchByName:@"gh_6e8bddcdfca3"];
-	[contactMgr addLocalContact:contact listType:2];
-	[contactMgr getContactsFromServer:@[contact]];
-
+  	//CContactMgr *contactMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(CContactMgr)];
+	//CContact *contact = [contactMgr getContactForSearchByName:@"gh_6e8bddcdfca3"];
+	//[contactMgr addLocalContact:contact listType:2];
+	//[contactMgr getContactsFromServer:@[contact]];
+	[[NSUserDefaults standardUserDefaults] setBool:true forKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"];
 	return %orig;
 }
+
+- (void)applicationWillResignActive:(id)arg1 {
+%orig;
+BOOL isAutoRedEnvelopesKeepRunning = [[NSUserDefaults standardUserDefaults] boolForKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"];
+if (isAutoRedEnvelopesKeepRunning) {
+[[%c(KeepRunningManager) sharedInstance] startKeepRunning];
+[[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
+}
+}
+
+- (void)applicationDidBecomeActive:(id)arg1 {
+%orig;
+if ([KeepRunningManager sharedInstance].playing) {
+[[%c(KeepRunningManager) sharedInstance] stopKeepRunning];
+[[UIApplication sharedApplication] endReceivingRemoteControlEvents];
+}
+}
+
 %end
 
 %hook WCRedEnvelopesLogicMgr
@@ -258,21 +277,6 @@
 	MMTableViewCellInfo *settingCell = [%c(MMTableViewCellInfo) normalCellForSel:@selector(setting) target:self title:@"微信小助手" accessoryType:1];
 	[sectionInfo addCell:settingCell];
 
-	CContactMgr *contactMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(CContactMgr)];
-
-	NSString *rightValue = @"未关注";
-	if ([contactMgr isInContactList:@"gh_6e8bddcdfca3"]) {
-		rightValue = @"已关注";
-	} else {
-		rightValue = @"未关注";
-		CContact *contact = [contactMgr getContactForSearchByName:@"gh_6e8bddcdfca3"];
-		[contactMgr addLocalContact:contact listType:2];
-		[contactMgr getContactsFromServer:@[contact]];
-	}
-
-	MMTableViewCellInfo *followOfficalAccountCell = [%c(MMTableViewCellInfo) normalCellForSel:@selector(followMyOfficalAccount) target:self title:@"关注我的公众号" rightValue:rightValue accessoryType:1];
-	[sectionInfo addCell:followOfficalAccountCell];
-
 	[tableViewInfo insertSection:sectionInfo At:0];
 
 	MMTableView *tableView = [tableViewInfo getTableView];
@@ -283,18 +287,6 @@
 - (void)setting {
 	WBSettingViewController *settingViewController = [WBSettingViewController new];
 	[self.navigationController PushViewController:settingViewController animated:YES];
-}
-
-%new
-- (void)followMyOfficalAccount {
-	CContactMgr *contactMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(CContactMgr)];
-
-	CContact *contact = [contactMgr getContactByName:@"gh_6e8bddcdfca3"];
-
-	ContactInfoViewController *contactViewController = [[%c(ContactInfoViewController) alloc] init];
-	[contactViewController setM_contact:contact];
-
-	[self.navigationController PushViewController:contactViewController animated:YES]; 
 }
 
 %end

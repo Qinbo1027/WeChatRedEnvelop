@@ -1,5 +1,4 @@
 #pragma mark - Util
-
 @interface WCBizUtil : NSObject
 
 + (id)dictionaryWithDecodedComponets:(id)arg1 separator:(id)arg2;
@@ -9,7 +8,7 @@
 @interface SKBuiltinBuffer_t : NSObject
 
 @property(retain, nonatomic) NSData *buffer; // @dynamic buffer;
-
+@property(nonatomic) unsigned int iLen;
 @end
 
 #pragma mark - Message
@@ -163,6 +162,7 @@
 
 + (id)sectionInfoDefaut;
 + (id)sectionInfoHeader:(id)arg1;
++ (id)sectionInfoFooter:(id)arg1;
 + (id)sectionInfoHeader:(id)arg1 Footer:(id)arg2;
 - (void)addCell:(id)arg1;
 
