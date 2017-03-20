@@ -189,12 +189,12 @@
     [WBRedEnvelopConfig sharedConfig].revokeEnable = revokeSwitch.on;
 }
 
-#pragma mark - Support
+#pragma mark - Other
 - (void)addOtherSection {
-    MMTableViewSectionInfo *sectionInfo = [objc_getClass("MMTableViewSectionInfo") sectionInfoDefaut];
+    MMTableViewSectionInfo *sectionInfo = [objc_getClass("MMTableViewSectionInfo") sectionInfoHeader:@"其它设置"];
     
     [sectionInfo addCell:[self addCustomStepCount]];
-	[sectionInfo addCell:[self addBackground]];
+    [sectionInfo addCell:[self addBackground]];
     
     [self.tableViewInfo addSection:sectionInfo];
 }
