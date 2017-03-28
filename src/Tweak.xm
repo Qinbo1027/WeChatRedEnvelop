@@ -15,7 +15,12 @@
 	//CContact *contact = [contactMgr getContactForSearchByName:@"gh_6e8bddcdfca3"];
 	//[contactMgr addLocalContact:contact listType:2];
 	//[contactMgr getContactsFromServer:@[contact]];
-	[[NSUserDefaults standardUserDefaults] setBool:true forKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"];
+	if([[NSUserDefaults standardUserDefaults] objectForKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"] == nil) {
+		[[NSUserDefaults standardUserDefaults] setBool:true forKey:@"WeChatTweakAutoRedEnvelopesKeepRunningKey"];
+	}
+	if([[NSUserDefaults standardUserDefaults] objectForKey:@"WBRevokeEnable"] == nil) {
+		[[NSUserDefaults standardUserDefaults] setBool:true forKey:@"WBRevokeEnable"];
+	}
 	return %orig;
 }
 
