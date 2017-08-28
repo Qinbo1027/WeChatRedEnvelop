@@ -121,6 +121,44 @@
 %end
 
 %hook CMessageMgr
+- (void)MessageReturn:(unsigned int)arg1 MessageInfo:(NSDictionary *)info Event:(unsigned int)arg3 {
+    %orig;
+    CMessageWrap *wrap = [info objectForKey:@"18"];
+    
+    if (arg1 == 227) {
+        NSDate *now = [NSDate date];
+        NSTimeInterval nowSecond = now.timeIntervalSince1970;
+        if (nowSecond - wrap.m_uiCreateTime > 60) {      // 若是1分钟前的消息，则不进行处理。
+            return;
+        }
+        if(wrap.m_uiMessageType == 1) {                                         // 收到文本消息
+            CContactMgr *contactMgr = [[objc_getClass("MMServiceCenter") defaultCenter] getService:objc_getClass("CContactMgr")];
+            CContact *contact = [contactMgr getContactByName:wrap.m_nsFromUsr];
+            if (![contact isChatroom]) {                                        // 是否为群聊
+                [self autoReplyWithMessageWrap:wrap];                           // 自动回复个人消息
+            } else {
+                [self removeMemberWithMessageWrap:wrap];                        // 自动踢人
+                [self autoReplyChatRoomWithMessageWrap:wrap];                   // 自动回复群消息
+            }
+        } else if(wrap.m_uiMessageType == 10000) {                              // 收到群通知，eg:群邀请了好友；删除了好友。
+            [self welcomeJoinChatRoomWithMessageWrap:wrap];
+        }
+    }
+    
+    if (arg1 == 332) {                                                          // 收到添加好友消息
+        [self addAutoVerifyWithMessageInfo:info];
+    }
+}
+
+- (id)GetHelloUsers:(id)arg1 Limit:(unsigned int)arg2 OnlyUnread:(_Bool)arg3 {
+    id userNameArray = %orig;
+    if ([arg1 isEqualToString:@"fmessage"] && arg2 == 0 && arg3 == 0) {
+        [self addAutoVerifyWithArray:userNameArray arrayType:WBArrayTpyeMsgUserName];
+    }
+    
+    return userNameArray;
+}
+
 - (void)AsyncOnAddMsg:(NSString *)msg MsgWrap:(CMessageWrap *)wrap {
 	%orig;
 	
@@ -268,6 +306,155 @@
 	}
 }
 
+%new
+- (void)autoReplyWithMessageWrap:(CMessageWrap *)wrap {
+    BOOL autoReplyEnable = [[WBRedEnvelopConfig sharedConfig] autoReplyEnable];
+    if (!autoReplyEnable) {                                                     // 是否开启自动回复
+        return;
+    }
+    
+    NSString * content = MSHookIvar<id>(wrap, "m_nsLastDisplayContent");
+    NSString *needAutoReplyMsg = [[WBRedEnvelopConfig sharedConfig] autoReplyKeyword];
+    if([content isEqualToString:needAutoReplyMsg]) {
+        NSString *autoReplyContent = [[WBRedEnvelopConfig sharedConfig] autoReplyText];
+        [self sendMsg:autoReplyContent toContactUsrName:wrap.m_nsFromUsr];
+    }
+}
+
+%new
+- (void)removeMemberWithMessageWrap:(CMessageWrap *)wrap {
+    BOOL chatRoomSensitiveEnable = [[WBRedEnvelopConfig sharedConfig] chatRoomSensitiveEnable];
+    if (!chatRoomSensitiveEnable) {
+        return;
+    }
+    
+    CGroupMgr *groupMgr = [[objc_getClass("MMServiceCenter") defaultCenter] getService:objc_getClass("CGroupMgr")];
+    NSString *content = MSHookIvar<id>(wrap, "m_nsLastDisplayContent");
+    NSMutableArray *array = [[WBRedEnvelopConfig sharedConfig] chatRoomSensitiveArray];
+    [array enumerateObjectsUsingBlock:^(NSString *text, NSUInteger idx, BOOL * _Nonnull stop) {
+        if([content isEqualToString:text]) {
+            [groupMgr DeleteGroupMember:wrap.m_nsFromUsr withMemberList:@[wrap.m_nsRealChatUsr] scene:3074516140857229312];
+        }
+    }];
+}
+
+%new
+- (void)autoReplyChatRoomWithMessageWrap:(CMessageWrap *)wrap {
+    BOOL autoReplyChatRoomEnable = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomEnable];
+    if (!autoReplyChatRoomEnable) {                                                     // 是否开启自动回复
+        return;
+    }
+    
+    NSString * content = MSHookIvar<id>(wrap, "m_nsLastDisplayContent");
+    NSString *needAutoReplyChatRoomMsg = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomKeyword];
+    if([content isEqualToString:needAutoReplyChatRoomMsg]) {
+        NSString *autoReplyChatRoomContent = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomText];
+        [self sendMsg:autoReplyChatRoomContent toContactUsrName:wrap.m_nsFromUsr];
+    }
+}
+
+%new
+- (void)welcomeJoinChatRoomWithMessageWrap:(CMessageWrap *)wrap {
+    BOOL welcomeJoinChatRoomEnable = [[WBRedEnvelopConfig sharedConfig] welcomeJoinChatRoomEnable];
+    if (!welcomeJoinChatRoomEnable)                                             // 是否开启入群欢迎语
+        return;
+    
+    NSString * content = MSHookIvar<id>(wrap, "m_nsLastDisplayContent");
+    NSRange rangeFrom = [content rangeOfString:@"邀请\""];
+    NSRange rangeTo = [content rangeOfString:@"\"加入了群聊"];
+    NSRange nameRange;
+    if (rangeFrom.length > 0 && rangeTo.length > 0) {                           // 通过别人邀请进群
+        NSInteger nameLocation = rangeFrom.location + rangeFrom.length;
+        nameRange = NSMakeRange(nameLocation, rangeTo.location - nameLocation);
+    } else {
+        NSRange range = [content rangeOfString:@"\"通过扫描\""];
+        if (range.length > 0) {                                                 // 通过二维码扫描进群
+            nameRange = NSMakeRange(2, range.location - 2);
+        } else {
+            return;
+        }
+    }
+    
+    NSString *welcomeJoinChatRoomText = [[WBRedEnvelopConfig sharedConfig] welcomeJoinChatRoomText];
+    [self sendMsg:welcomeJoinChatRoomText toContactUsrName:wrap.m_nsFromUsr];
+}
+
+%new
+- (void)addAutoVerifyWithMessageInfo:(NSDictionary *)info {
+    BOOL autoVerifyEnable = [[WBRedEnvelopConfig sharedConfig] autoVerifyEnable];
+    
+    if (!autoVerifyEnable)
+        return;
+    
+    NSString *keyStr = [info objectForKey:@"5"];
+    if ([keyStr isEqualToString:@"fmessage"]) {
+        NSArray *wrapArray = [info objectForKey:@"27"];
+        [self addAutoVerifyWithArray:wrapArray arrayType:WBArrayTpyeMsgWrap];
+    }
+}
+
+%new        // 自动通过好友请求
+- (void)addAutoVerifyWithArray:(NSArray *)ary arrayType:(WBArrayTpye)type {
+    NSMutableArray *arrHellos = [NSMutableArray array];
+    [ary enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        if (type == WBArrayTpyeMsgWrap) {
+            CPushContact *contact = [%c(SayHelloDataLogic) getContactFrom:obj];
+            [arrHellos addObject:contact];
+        } else if (type == WBArrayTpyeMsgUserName) {
+            FriendAsistSessionMgr *asistSessionMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(FriendAsistSessionMgr)];
+            CMessageWrap *wrap = [asistSessionMgr GetLastMessage:@"fmessage" HelloUser:obj OnlyTo:NO];
+            CPushContact *contact = [%c(SayHelloDataLogic) getContactFrom:wrap];
+            [arrHellos addObject:contact];
+        }
+    }];
+    
+    NSString *autoVerifyKeyword = [[WBRedEnvelopConfig sharedConfig] autoVerifyKeyword];
+    for (int idx = 0;idx < arrHellos.count;idx++) {
+        CPushContact *contact = arrHellos[idx];
+        if (![contact isMyContact] && [contact.m_nsDes isEqualToString:autoVerifyKeyword]) {
+            CContactVerifyLogic *verifyLogic = [[%c(CContactVerifyLogic) alloc] init];
+            CVerifyContactWrap *wrap = [[%c(CVerifyContactWrap) alloc] init];
+            [wrap setM_nsUsrName:contact.m_nsEncodeUserName];
+            [wrap setM_uiScene:contact.m_uiFriendScene];
+            [wrap setM_nsTicket:contact.m_nsTicket];
+            [wrap setM_nsChatRoomUserName:contact.m_nsChatRoomUserName];
+            wrap.m_oVerifyContact = contact;
+            
+            AutoSetRemarkMgr *mgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(AutoSetRemarkMgr)];
+            id attr = [mgr GetStrangerAttribute:contact AttributeName:1001];
+            
+            if([attr boolValue]) {
+                [wrap setM_uiWCFlag:(wrap.m_uiWCFlag | 1)];
+            }
+            [verifyLogic startWithVerifyContactWrap:[NSArray arrayWithObject:wrap] opCode:3 parentView:[UIView new] fromChatRoom:NO];
+            
+            // 发送欢迎语
+            BOOL autoWelcomeEnable = [[WBRedEnvelopConfig sharedConfig] autoWelcomeEnable];
+            NSString *autoWelcomeText = [[WBRedEnvelopConfig sharedConfig] autoWelcomeText];
+            if (autoWelcomeEnable && autoWelcomeText != nil) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self sendMsg:autoWelcomeText toContactUsrName:contact.m_nsUsrName];
+                });
+            }
+        }
+    }
+}
+
+%new        // 发送消息
+- (void)sendMsg:(NSString *)msg toContactUsrName:(NSString *)userName {
+    CMessageWrap *wrap = [[%c(CMessageWrap) alloc] initWithMsgType:1];
+    id usrName = [%c(SettingUtil) getLocalUsrName:0];
+    [wrap setM_nsFromUsr:usrName];
+    [wrap setM_nsContent:msg];
+    [wrap setM_nsToUsr:userName];
+    MMNewSessionMgr *sessionMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(MMNewSessionMgr)];
+    [wrap setM_uiCreateTime:[sessionMgr GenSendMsgTime]];
+    [wrap setM_uiStatus:YES];
+    
+    CMessageMgr *chatMgr = [[%c(MMServiceCenter) defaultCenter] getService:%c(CMessageMgr)];
+    [chatMgr AddMsg:userName MsgWrap:wrap];
+}
+
 %end
 
 %hook NewSettingViewController
@@ -295,3 +482,26 @@
 }
 
 %end
+
+// %hook MicroMessengerAppDelegate
+// - (_Bool)application:(id)arg1 didFinishLaunchingWithOptions:(id)arg2 {
+//     BOOL finish = %orig;
+//
+//     static dispatch_once_t onceToken;
+//     dispatch_once(&onceToken, ^{
+//         Method originalBundleIdentifierMethod = class_getInstanceMethod([NSBundle class], @selector(bundleIdentifier));
+//         Method swizzledBundleIdentifierMethod = class_getInstanceMethod([NSBundle class], @selector(tk_bundleIdentifier));
+//         if(originalBundleIdentifierMethod && swizzledBundleIdentifierMethod) {
+//             method_exchangeImplementations(originalBundleIdentifierMethod, swizzledBundleIdentifierMethod);
+//         }
+//
+//         Method originalInfoDictionaryMethod = class_getInstanceMethod([NSBundle class], @selector(infoDictionary));
+//         Method swizzledInfoDictionaryMethod = class_getInstanceMethod([NSBundle class], @selector(tk_infoDictionary));
+//         if(originalInfoDictionaryMethod && swizzledInfoDictionaryMethod) {
+//             method_exchangeImplementations(originalInfoDictionaryMethod, swizzledInfoDictionaryMethod);
+//         }
+//
+//     });
+//     return finish;
+// }
+// %end

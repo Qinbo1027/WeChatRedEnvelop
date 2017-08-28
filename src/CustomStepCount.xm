@@ -7,4 +7,9 @@
     return customStepCount == 0 ? %orig : customStepCount;
 }
 
+- (unsigned long)hkStepCount {
+    NSUInteger customStepCount = [[NSUserDefaults standardUserDefaults] integerForKey:@"WeChatTweakCustomStepCountKey"];
+    return customStepCount == 0 ? %orig : customStepCount;
+}
+
 %end
