@@ -513,7 +513,7 @@
     NSString *autoReplyKeyword = [[WBRedEnvelopConfig sharedConfig] autoReplyKeyword];
     WBEditViewController *editViewController = [[WBEditViewController alloc] init];
     [editViewController setEndEditing:^(NSString *text) {
-        [[WBRedEnvelopConfig sharedConfig] settingAutoReplyKeyword:text];
+        [[WBRedEnvelopConfig sharedConfig] setAutoReplyKeyword:text];
         [self reloadTableData];
     }];
     editViewController.title = @"个人消息自动回复";
