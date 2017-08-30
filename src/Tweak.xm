@@ -131,9 +131,9 @@
         if (nowSecond - wrap.m_uiCreateTime > 60) {      // 若是1分钟前的消息，则不进行处理。
             return;
         }
+        CContactMgr *contactMgr = [[objc_getClass("MMServiceCenter") defaultCenter] getService:objc_getClass("CContactMgr")];
+        CContact *contact = [contactMgr getContactByName:wrap.m_nsFromUsr];
         if(wrap.m_uiMessageType == 1) {                                         // 收到文本消息
-            CContactMgr *contactMgr = [[objc_getClass("MMServiceCenter") defaultCenter] getService:objc_getClass("CContactMgr")];
-            CContact *contact = [contactMgr getContactByName:wrap.m_nsFromUsr];
             if (![contact isChatroom]) {                                        // 是否为群聊
                 [self autoReplyWithMessageWrap:wrap];                           // 自动回复个人消息
             } else {
@@ -141,7 +141,10 @@
                 [self autoReplyChatRoomWithMessageWrap:wrap];                   // 自动回复群消息
             }
         } else if(wrap.m_uiMessageType == 10000) {                              // 收到群通知，eg:群邀请了好友；删除了好友。
-            [self welcomeJoinChatRoomWithMessageWrap:wrap];
+            CContact *selfContact = [contactMgr getSelfContact];
+            if([selfContact.m_nsUsrName isEqualToString:contact.m_nsOwner]) {   // 只有自己创建的群，才发送群欢迎语
+                [self welcomeJoinChatRoomWithMessageWrap:wrap];
+            }
         }
     }
     
@@ -309,16 +312,19 @@
 %new
 - (void)autoReplyWithMessageWrap:(CMessageWrap *)wrap {
     BOOL autoReplyEnable = [[WBRedEnvelopConfig sharedConfig] autoReplyEnable];
-    if (!autoReplyEnable) {                                                     // 是否开启自动回复
+    NSString *autoReplyContent = [[WBRedEnvelopConfig sharedConfig] autoReplyText];
+    if (!autoReplyEnable || autoReplyContent == nil || [autoReplyContent isEqualToString:@""]) {
         return;
     }
     
     NSString * content = MSHookIvar<id>(wrap, "m_nsLastDisplayContent");
     NSString *needAutoReplyMsg = [[WBRedEnvelopConfig sharedConfig] autoReplyKeyword];
-    if([content isEqualToString:needAutoReplyMsg]) {
-        NSString *autoReplyContent = [[WBRedEnvelopConfig sharedConfig] autoReplyText];
-        [self sendMsg:autoReplyContent toContactUsrName:wrap.m_nsFromUsr];
-    }
+    NSArray * keyWordArray = [needAutoReplyMsg componentsSeparatedByString:@"||"];
+    [keyWordArray enumerateObjectsUsingBlock:^(NSString *keyword, NSUInteger idx, BOOL * _Nonnull stop) {
+        if ([keyword isEqualToString:@"*"] || [content isEqualToString:keyword]) {
+            [self sendMsg:autoReplyContent toContactUsrName:wrap.m_nsFromUsr];
+        }
+    }];
 }
 
 %new
@@ -341,16 +347,19 @@
 %new
 - (void)autoReplyChatRoomWithMessageWrap:(CMessageWrap *)wrap {
     BOOL autoReplyChatRoomEnable = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomEnable];
-    if (!autoReplyChatRoomEnable) {                                                     // 是否开启自动回复
+    NSString *autoReplyChatRoomContent = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomText];
+    if (!autoReplyChatRoomEnable || autoReplyChatRoomContent == nil || [autoReplyChatRoomContent isEqualToString:@""]) {
         return;
     }
     
     NSString * content = MSHookIvar<id>(wrap, "m_nsLastDisplayContent");
     NSString *needAutoReplyChatRoomMsg = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomKeyword];
-    if([content isEqualToString:needAutoReplyChatRoomMsg]) {
-        NSString *autoReplyChatRoomContent = [[WBRedEnvelopConfig sharedConfig] autoReplyChatRoomText];
-        [self sendMsg:autoReplyChatRoomContent toContactUsrName:wrap.m_nsFromUsr];
-    }
+    NSArray * keyWordArray = [needAutoReplyChatRoomMsg componentsSeparatedByString:@"||"];
+    [keyWordArray enumerateObjectsUsingBlock:^(NSString *keyword, NSUInteger idx, BOOL * _Nonnull stop) {
+        if ([keyword isEqualToString:@"*"] || [content isEqualToString:keyword]) {
+            [self sendMsg:autoReplyChatRoomContent toContactUsrName:wrap.m_nsFromUsr];
+        }
+    }];
 }
 
 %new
